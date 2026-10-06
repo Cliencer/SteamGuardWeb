@@ -46,7 +46,11 @@ button:hover{border-color:var(--muted);}
 .empty{color:var(--muted);text-align:center;padding:40px 0;}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#238636;color:#fff;padding:10px 20px;border-radius:6px;font-size:14px;opacity:0;pointer-events:none;transition:.3s;}
 .toast.show{opacity:1;}
-dialog{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:20px;max-width:420px;width:90%;}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:20px;max-width:600px;width:92%;margin:auto;inset:0;height:fit-content;}
+.dlg-close{position:absolute;top:10px;right:10px;background:none;border:none;color:var(--muted);font-size:16px;padding:4px 8px;line-height:1;}
+.dlg-close:hover{color:var(--text);}
+.fab{position:fixed;right:28px;bottom:28px;width:56px;height:56px;border-radius:50%;background:var(--accent2);color:#fff;font-size:30px;line-height:1;padding:0;box-shadow:0 4px 14px rgba(0,0,0,.45);z-index:100;transition:.15s;}
+.fab:hover{background:#4db3ff;transform:scale(1.06);border-color:var(--accent2);}
 dialog::backdrop{background:rgba(0,0,0,.6);}
 dialog h3{font-size:15px;margin-bottom:14px;}
 .dlg-btns{display:flex;justify-content:flex-end;gap:10px;margin-top:16px;}
@@ -69,18 +73,20 @@ footer{color:var(--muted);font-size:12px;text-align:center;margin-top:30px;line-
   </div>
 </header>
 
-<div class="panel">
-  <h2 id="formTitle">添加账号</h2>
+<dialog id="dlgAccount">
+  <button class="dlg-close" id="btnCloseDlg" title="关闭">✕</button>
+  <h3 id="formTitle">添加账号</h3>
   <div class="row">
     <div class="field"><label>名称（备注）</label><input type="text" id="inpName" placeholder="例如：主账号 / xxx@gmail.com"></div>
     <div class="field"><label>identity_secret（Base64）</label><input type="text" id="inpIdentity" placeholder="identity_secret" autocomplete="off"></div>
     <div class="field"><label>shared_secret（Base64）</label><input type="text" id="inpShared" placeholder="shared_secret" autocomplete="off"></div>
   </div>
   <div class="row" style="margin-top:14px;justify-content:flex-end;">
-    <button id="btnCancelEdit" class="hide">取消编辑</button>
+    <button id="btnCancelEdit">取消</button>
     <button id="btnAdd" class="btn-primary">保存账号</button>
   </div>
-</div>
+</dialog>
+<button id="btnAddAccount" class="fab" title="添加账号">＋</button>
 
 <div id="cardList" class="cards"></div>
 <div id="emptyTip" class="empty">还没有账号，先在上方添加一个吧</div>
@@ -155,14 +161,13 @@ $('btnAdd').onclick = async () => {
   if(editingId !== null){
     const a = accounts.find(x=>x.id===editingId);
     if(a){ a.name=name; a.identity=identity; a.shared=shared; }
-    cancelEdit();
     toast('已保存修改');
   } else {
     if(accounts.some(a=>a.name===name)){ toast('已存在同名账号'); return; }
     accounts.push({id: Date.now()+Math.random().toString(36).slice(2,7), name, identity, shared, created: Date.now()});
     toast('账号已添加');
   }
-  save(); clearForm(); render();
+  save(); cancelEdit(); render();
 };
 
 function clearForm(){
@@ -172,9 +177,13 @@ function cancelEdit(){
   editingId = null; clearForm();
   $('formTitle').textContent = '添加账号';
   $('btnAdd').textContent = '保存账号';
-  $('btnCancelEdit').classList.add('hide');
+  if($('dlgAccount').open) $('dlgAccount').close();
 }
 $('btnCancelEdit').onclick = cancelEdit;
+$('btnCloseDlg').onclick = cancelEdit;
+$('btnAddAccount').onclick = ()=>{ cancelEdit(); $('dlgAccount').showModal(); $('inpName').focus(); };
+/* 点击遮罩区域关闭弹窗 */
+$('dlgAccount').addEventListener('click', e=>{ if(e.target === $('dlgAccount')) $('dlgAccount').close(); });
 
 function render(){
   const list = $('cardList');
@@ -205,8 +214,8 @@ function render(){
       $('inpName').value = a.name; $('inpIdentity').value = a.identity; $('inpShared').value = a.shared;
       $('formTitle').textContent = '编辑账号：' + a.name;
       $('btnAdd').textContent = '保存修改';
-      $('btnCancelEdit').classList.remove('hide');
-      window.scrollTo({top:0, behavior:'smooth'});
+      $('dlgAccount').showModal();
+      $('inpShared').focus();
     };
     card.querySelector('[data-act=del]').onclick = ()=>{
       if(confirm('确定删除账号「' + a.name + '」？\n建议先导出备份。')){
