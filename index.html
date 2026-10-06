@@ -36,8 +36,12 @@ button:hover{border-color:var(--muted);}
 .card .meta{font-size:11px;color:var(--muted);font-family:ui-monospace,monospace;word-break:break-all;margin-bottom:14px;}
 .code{font-family:ui-monospace,Consolas,monospace;font-size:34px;letter-spacing:6px;font-weight:700;color:var(--accent);text-align:center;padding:8px 0;user-select:all;cursor:pointer;}
 .code:hover{text-decoration:underline dotted;}
-.progressbar{height:4px;background:#21262d;border-radius:2px;overflow:hidden;margin:10px 0 14px;}
-.progressbar>div{height:100%;background:var(--accent2);transition:width 1s linear;}
+.progress-row{display:flex;align-items:center;gap:10px;margin:10px 0 14px;}
+.progressbar{flex:1;height:4px;background:#21262d;border-radius:2px;overflow:hidden;}
+.progressbar>div{height:100%;background:var(--accent2);transition:width 1s linear;border-radius:2px;}
+.progressbar>div.urgent{background:var(--danger);}
+.countdown{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--muted);min-width:32px;text-align:right;}
+.countdown.urgent{color:var(--danger);font-weight:700;}
 .card-actions{display:flex;gap:8px;justify-content:flex-end;}
 .empty{color:var(--muted);text-align:center;padding:40px 0;}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#238636;color:#fff;padding:10px 20px;border-radius:6px;font-size:14px;opacity:0;pointer-events:none;transition:.3s;}
@@ -112,7 +116,8 @@ function b64ToBytes(b64){
   return bytes;
 }
 async function generateCode(sharedSecret){
-  const key = await crypto.subtle.importKey('raw', b64ToBytes(sharedSecret), {name:'HMAC', hash:'SHA-1'}, false, ['sign']);
+  const key = await crypto.subtle.importKey('raw', b64ToBytes(sharedSecret),
+    {name:'HMAC', hash:'SHA-1'}, false, ['sign']);
   const time = Math.floor(Date.now()/1000 + timeOffset);
   const counter = Math.floor(time/30);
   const buf = new ArrayBuffer(8);
@@ -182,7 +187,10 @@ function render(){
       <div class="name"></div>
       <div class="meta"></div>
       <div class="code" title="点击复制">······</div>
-      <div class="progressbar"><div style="width:0%"></div></div>
+      <div class="progress-row">
+        <div class="progressbar"><div style="width:100%"></div></div>
+        <span class="countdown">30s</span>
+      </div>
       <div class="card-actions">
         <button class="btn-sm" data-act="copy">复制代码</button>
         <button class="btn-sm" data-act="edit">编辑</button>
@@ -229,10 +237,17 @@ async function updateCode(card, a){
 }
 
 function tick(){
-  const sec = Math.floor(Date.now()/1000 + timeOffset) % 30;
-  const pct = (sec/30*100).toFixed(1) + '%';
-  document.querySelectorAll('.progressbar>div').forEach(b=>b.style.width = pct);
+  const remain = 30 - (Math.floor(Date.now()/1000 + timeOffset) % 30);
+  const pct = (remain/30*100).toFixed(1) + '%';
+  const urgent = remain <= 5;
+  document.querySelectorAll('.card').forEach(card=>{
+    const bar = card.querySelector('.progressbar>div');
+    if(bar){ bar.style.width = pct; bar.classList.toggle('urgent', urgent); }
+    const cd = card.querySelector('.countdown');
+    if(cd){ cd.textContent = remain + 's'; cd.classList.toggle('urgent', urgent); }
+  });
 }
+setInterval(tick, 1000);
 
 async function refreshAll(){
   const cards = document.querySelectorAll('.card');
@@ -287,7 +302,7 @@ $('fileImport').onchange = async e=>{
   e.target.value = '';
 };
 
-render(); schedule();
+render(); schedule(); tick();
 </script>
 </body>
 </html>
