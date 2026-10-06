@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steam 令牌管理器</title>
+<style>
+:root{
+  --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3;
+  --muted:#8b949e; --accent:#66c0f4; --accent2:#1a9fff; --danger:#f85149; --ok:#3fb950;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:"Segoe UI",system-ui,-apple-system,sans-serif;min-height:100vh;padding:24px;}
+.container{max-width:960px;margin:0 auto;}
+header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px;}
+h1{font-size:22px;display:flex;align-items:center;gap:10px;}
+h1 .logo{width:32px;height:32px;}
+.sub{color:var(--muted);font-size:13px;margin-top:4px;}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:20px;}
+.panel h2{font-size:15px;margin-bottom:14px;color:var(--accent);}
+.row{display:flex;gap:12px;flex-wrap:wrap;}
+.field{flex:1;min-width:200px;}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;}
+input[type=text],input[type=password]{width:100%;background:#0d1117;border:1px solid var(--border);border-radius:6px;color:var(--text);padding:9px 12px;font-size:14px;font-family:ui-monospace,Consolas,monospace;}
+input:focus{outline:none;border-color:var(--accent2);}
+button{cursor:pointer;border:none;border-radius:6px;padding:9px 16px;font-size:14px;background:#21262d;color:var(--text);border:1px solid var(--border);transition:.15s;}
+button:hover{border-color:var(--muted);}
+.btn-primary{background:var(--accent2);border-color:var(--accent2);color:#fff;font-weight:600;}
+.btn-primary:hover{background:#4db3ff;border-color:#4db3ff;}
+.btn-danger{color:var(--danger);}
+.btn-sm{padding:5px 10px;font-size:12px;}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px;position:relative;}
+.card .name{font-size:15px;font-weight:600;margin-bottom:4px;word-break:break-all;}
+.card .meta{font-size:11px;color:var(--muted);font-family:ui-monospace,monospace;word-break:break-all;margin-bottom:14px;}
+.code{font-family:ui-monospace,Consolas,monospace;font-size:34px;letter-spacing:6px;font-weight:700;color:var(--accent);text-align:center;padding:8px 0;user-select:all;cursor:pointer;}
+.code:hover{text-decoration:underline dotted;}
+.progressbar{height:4px;background:#21262d;border-radius:2px;overflow:hidden;margin:10px 0 14px;}
+.progressbar>div{height:100%;background:var(--accent2);transition:width 1s linear;}
+.card-actions{display:flex;gap:8px;justify-content:flex-end;}
+.empty{color:var(--muted);text-align:center;padding:40px 0;}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#238636;color:#fff;padding:10px 20px;border-radius:6px;font-size:14px;opacity:0;pointer-events:none;transition:.3s;}
+.toast.show{opacity:1;}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:20px;max-width:420px;width:90%;}
+dialog::backdrop{background:rgba(0,0,0,.6);}
+dialog h3{font-size:15px;margin-bottom:14px;}
+.dlg-btns{display:flex;justify-content:flex-end;gap:10px;margin-top:16px;}
+.hide{display:none;}
+footer{color:var(--muted);font-size:12px;text-align:center;margin-top:30px;line-height:1.7;}
+</style>
+<base target="_blank">
+</head>
+<body>
+<div class="container">
+<header>
+  <div>
+    <h1><svg class="logo" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#171a21" stroke="#66c0f4" stroke-width="1.5"/><circle cx="8" cy="14" r="2.5" fill="#66c0f4"/><circle cx="16" cy="9" r="3" fill="#c7d5e0"/></svg>Steam 令牌管理器</h1>
+    <div class="sub">数据仅保存在浏览器 localStorage，不上传任何服务器</div>
+  </div>
+  <div class="toolbar">
+    <button id="btnExport">导出备份</button>
+    <button id="btnImport">导入备份</button>
+    <input type="file" id="fileImport" accept=".json,application/json" class="hide">
+  </div>
+</header>
+
+<div class="panel">
+  <h2 id="formTitle">添加账号</h2>
+  <div class="row">
+    <div class="field"><label>名称（备注）</label><input type="text" id="inpName" placeholder="例如：主账号 / xxx@gmail.com"></div>
+    <div class="field"><label>identity_secret（Base64）</label><input type="text" id="inpIdentity" placeholder="identity_secret" autocomplete="off"></div>
+    <div class="field"><label>shared_secret（Base64）</label><input type="text" id="inpShared" placeholder="shared_secret" autocomplete="off"></div>
+  </div>
+  <div class="row" style="margin-top:14px;justify-content:flex-end;">
+    <button id="btnCancelEdit" class="hide">取消编辑</button>
+    <button id="btnAdd" class="btn-primary">保存账号</button>
+  </div>
+</div>
+
+<div id="cardList" class="cards"></div>
+<div id="emptyTip" class="empty">还没有账号，先在上方添加一个吧</div>
+
+<footer>
+  提示：令牌代码每 30 秒自动刷新 · 点击代码可快速复制<br>
+  请定期使用「导出备份」保存令牌信息，更换浏览器或清除数据前务必先导出
+</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORE_KEY = 'steam_token_manager_accounts_v1';
+const CHARS = '23456789BCDFGHJKMNPQRTVWXY';
+
+let accounts = load();
+let editingId = null;
+let timeOffset = 0;
+
+function load(){
+  try{ return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }catch(e){ return []; }
+}
+function save(){
+  localStorage.setItem(STORE_KEY, JSON.stringify(accounts));
+}
+
+/* ---------- Steam TOTP ---------- */
+function b64ToBytes(b64){
+  const bin = atob(b64.replace(/\s/g,'').replace(/-/g,'+').replace(/_/g,'/'));
+  const bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  return bytes;
+}
+async function generateCode(sharedSecret){
+  const key = await crypto.subtle.importKey('raw', b64ToBytes(sharedSecret),
+    {name:'HMAC', hash:'SHA-1'}, false, ['sign']);
+  const time = Math.floor(Date.now()/1000 + timeOffset);
+  const counter = Math.floor(time/30);
+  const buf = new ArrayBuffer(8);
+  new DataView(buf).setUint32(4, counter);
+  const hmac = new Uint8Array(await crypto.subtle.sign('HMAC', key, buf));
+  const off = hmac[hmac.length-1] & 0x0f;
+  let code = ((hmac[off]&0x7f)<<24 | hmac[off+1]<<16 | hmac[off+2]<<8 | hmac[off+3]) >>> 0;
+  let str = '';
+  for(let i=0;i<5;i++){ str += CHARS[code % CHARS.length]; code = Math.floor(code/28); }
+  return str;
+}
+
+/* ---------- UI ---------- */
+const $ = id => document.getElementById(id);
+
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._tm); t._tm = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+function validate(name, identity, shared){
+  if(!name.trim()) return '请填写名称';
+  if(!identity.trim() || !shared.trim()) return '请填写 identity_secret 和 shared_secret';
+  try{ b64ToBytes(shared.trim()); b64ToBytes(identity.trim()); }
+  catch(e){ return 'secret 不是有效的 Base64 格式'; }
+  return null;
+}
+
+$('btnAdd').onclick = async () => {
+  const name = $('inpName').value.trim();
+  const identity = $('inpIdentity').value.trim();
+  const shared = $('inpShared').value.trim();
+  const err = validate(name, identity, shared);
+  if(err){ toast(err); return; }
+  if(editingId !== null){
+    const a = accounts.find(x=>x.id===editingId);
+    if(a){ a.name=name; a.identity=identity; a.shared=shared; }
+    cancelEdit();
+    toast('已保存修改');
+  } else {
+    if(accounts.some(a=>a.name===name)){ toast('已存在同名账号'); return; }
+    accounts.push({id: Date.now()+Math.random().toString(36).slice(2,7), name, identity, shared, created: Date.now()});
+    toast('账号已添加');
+  }
+  save(); clearForm(); render();
+};
+
+function clearForm(){
+  $('inpName').value = $('inpIdentity').value = $('inpShared').value = '';
+}
+function cancelEdit(){
+  editingId = null; clearForm();
+  $('formTitle').textContent = '添加账号';
+  $('btnAdd').textContent = '保存账号';
+  $('btnCancelEdit').classList.add('hide');
+}
+$('btnCancelEdit').onclick = cancelEdit;
+
+function render(){
+  const list = $('cardList');
+  $('emptyTip').style.display = accounts.length ? 'none' : 'block';
+  list.innerHTML = '';
+  accounts.forEach(a=>{
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="name"></div>
+      <div class="meta"></div>
+      <div class="code" title="点击复制">······</div>
+      <div class="progressbar"><div style="width:0%"></div></div>
+      <div class="card-actions">
+        <button class="btn-sm" data-act="copy">复制代码</button>
+        <button class="btn-sm" data-act="edit">编辑</button>
+        <button class="btn-sm btn-danger" data-act="del">删除</button>
+      </div>`;
+    card.querySelector('.name').textContent = a.name;
+    card.querySelector('.meta').textContent = '添加于 ' + new Date(a.created).toLocaleString();
+    card.querySelector('[data-act=copy]').onclick = ()=>copyCode(card, a);
+    card.querySelector('.code').onclick = ()=>copyCode(card, a);
+    card.querySelector('[data-act=edit]').onclick = ()=>{
+      editingId = a.id;
+      $('inpName').value = a.name; $('inpIdentity').value = a.identity; $('inpShared').value = a.shared;
+      $('formTitle').textContent = '编辑账号：' + a.name;
+      $('btnAdd').textContent = '保存修改';
+      $('btnCancelEdit').classList.remove('hide');
+      window.scrollTo({top:0, behavior:'smooth'});
+    };
+    card.querySelector('[data-act=del]').onclick = ()=>{
+      if(confirm('确定删除账号「' + a.name + '」？\n建议先导出备份。')){
+        accounts = accounts.filter(x=>x.id!==a.id);
+        save(); render(); toast('已删除');
+      }
+    };
+    list.appendChild(card);
+    updateCode(card, a);
+  });
+}
+
+async function copyCode(card, a){
+  const code = card.querySelector('.code').dataset.code;
+  if(!code) return;
+  try{ await navigator.clipboard.writeText(code); toast('代码已复制：' + code); }
+  catch(e){ toast('复制失败，请手动选择复制'); }
+}
+
+async function updateCode(card, a){
+  try{
+    const code = await generateCode(a.shared);
+    const el = card.querySelector('.code');
+    el.textContent = code; el.dataset.code = code;
+  }catch(e){
+    card.querySelector('.code').textContent = '错误';
+  }
+}
+
+function tick(){
+  const sec = Math.floor(Date.now()/1000 + timeOffset) % 30;
+  const pct = (sec/30*100).toFixed(1) + '%';
+  document.querySelectorAll('.progressbar>div').forEach(b=>b.style.width = pct);
+}
+
+async function refreshAll(){
+  const cards = document.querySelectorAll('.card');
+  accounts.forEach((a,i)=>{ if(cards[i]) updateCode(cards[i], a); });
+}
+
+/* 每 30 秒在周期边界刷新 */
+function schedule(){
+  const delay = 30000 - (Date.now() % 30000);
+  setTimeout(()=>{ refreshAll(); schedule(); }, delay + 100);
+}
+
+/* ---------- 导出 / 导入 ---------- */
+$('btnExport').onclick = ()=>{
+  if(!accounts.length){ toast('没有可导出的账号'); return; }
+  const data = { app:'steam-token-manager', version:1, exportedAt:new Date().toISOString(), accounts };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const aEl = document.createElement('a');
+  aEl.href = url;
+  aEl.download = 'steam_tokens_backup_' + new Date().toISOString().slice(0,10) + '.json';
+  aEl.click();
+  URL.revokeObjectURL(url);
+  toast('已导出 ' + accounts.length + ' 个账号');
+};
+
+$('btnImport').onclick = ()=>$('fileImport').click();
+$('fileImport').onchange = async e=>{
+  const file = e.target.files[0]; if(!file) return;
+  try{
+    const data = JSON.parse(await file.text());
+    const arr = Array.isArray(data) ? data : data.accounts;
+    if(!Array.isArray(arr)) throw new Error('格式不正确');
+    let added = 0, skipped = 0;
+    for(const item of arr){
+      if(!item || !item.name || !item.shared) { skipped++; continue; }
+      if(accounts.some(a=>a.name===item.name)){ skipped++; continue; }
+      accounts.push({
+        id: Date.now()+Math.random().toString(36).slice(2,7),
+        name: String(item.name),
+        identity: String(item.identity || ''),
+        shared: String(item.shared),
+        created: item.created || Date.now()
+      });
+      added++;
+    }
+    save(); render();
+    toast('导入完成：新增 ' + added + ' 个，跳过 ' + skipped + ' 个（同名或格式错误）');
+  }catch(err){
+    toast('导入失败：文件不是有效的备份 JSON');
+  }
+  e.target.value = '';
+};
+
+render(); schedule();
+</script>
+</body>
+</html>
