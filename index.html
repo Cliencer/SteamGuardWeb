@@ -112,8 +112,7 @@ function b64ToBytes(b64){
   return bytes;
 }
 async function generateCode(sharedSecret){
-  const key = await crypto.subtle.importKey('raw', b64ToBytes(sharedSecret),
-    {name:'HMAC', hash:'SHA-1'}, false, ['sign']);
+  const key = await crypto.subtle.importKey('raw', b64ToBytes(sharedSecret), {name:'HMAC', hash:'SHA-1'}, false, ['sign']);
   const time = Math.floor(Date.now()/1000 + timeOffset);
   const counter = Math.floor(time/30);
   const buf = new ArrayBuffer(8);
@@ -122,7 +121,7 @@ async function generateCode(sharedSecret){
   const off = hmac[hmac.length-1] & 0x0f;
   let code = ((hmac[off]&0x7f)<<24 | hmac[off+1]<<16 | hmac[off+2]<<8 | hmac[off+3]) >>> 0;
   let str = '';
-  for(let i=0;i<5;i++){ str += CHARS[code % CHARS.length]; code = Math.floor(code/28); }
+  for(let i=0;i<5;i++){ str += CHARS[code % CHARS.length]; code = Math.floor(code / CHARS.length); }
   return str;
 }
 
